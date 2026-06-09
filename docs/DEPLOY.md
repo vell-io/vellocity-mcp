@@ -52,16 +52,20 @@ Thick mode replaces the `runSkill()` thin return with a real inference call.
 - Wire `runSkill()` thick branch to the **Bedrock Converse API** (Claude on Bedrock — aligns with the OpenAI→Bedrock migration). Per-token cost = your COGS; no GPUs, scales to zero.
 - IAM: `bedrock:InvokeModel` / `bedrock:Converse` on the specific model ARNs only (least privilege).
 
-### AgentCore — what to lean on (verify GA before committing)
-- **AgentCore Gateway** — can *be* the managed MCP gateway: expose Lambdas/APIs as MCP tools with managed auth. Could replace hand-rolled gateway code.
-- **AgentCore Identity** — per-tenant OAuth/scoping → satisfies Tier-1 isolation without building an auth service.
-- **AgentCore Runtime / Memory** — managed serverless agent execution + memory, if a tool grows from one inference call into a multi-step agent.
+### AgentCore — GA, so lean on it for Tier-1
+**Amazon Bedrock AgentCore is GA (2025-10-13); only Payments is preview.** So the Tier-1 build-vs-buy gate resolves to **buy**:
+- **AgentCore Gateway (GA)** — **connects to existing MCP servers** and adds IAM *and* OAuth auth over MCP. So `vellocity-mcp` can sit *behind* the Gateway for managed auth + tool exposure instead of hand-rolled gateway code.
+- **AgentCore Identity (GA)** — identity-aware authorization + secure refresh-token vault → per-tenant scoping for Tier-1 without building an auth service.
+- **AgentCore Runtime (GA)** — 8-hour windows, full session isolation, A2A protocol — if a tool grows into a multi-step agent.
+- GA also brought VPC, PrivateLink, CloudFormation, and tagging across all AgentCore services.
 - **AgentCore Payments** — **PREVIEW** (announced 2026-05-07; regions us-east-1, us-west-2, eu-central-1, ap-southeast-2; built with Coinbase + Stripe). This is the **buyer side**: it lets an agent autonomously pay for paid APIs/MCPs — on HTTP 402 it negotiates x402, authenticates the wallet (Coinbase CDP or Stripe Privy), settles stablecoin, and returns proof, with deterministic session spend-limits. It also exposes the **Coinbase x402 Bazaar** (10,000+ x402 endpoints) through AgentCore Gateway for discovery.
 
-**Decision gate:** evaluate AgentCore Gateway/Identity GA + MCP fit *before* architecting Tier-1 on it. If not ready, fall back to: API Gateway authorizer + Cognito (or a bearer-key table) for auth, and our own thin metering — but prefer AgentCore to avoid building plumbing.
+**Decision gate — RESOLVED:** Gateway + Identity are GA and Gateway natively fronts MCP servers, so architect Tier-1 auth/exposure on AgentCore rather than building API-GW authorizer + Cognito. (Bedrock + AgentCore are also where AWS Activate GenAI credits apply — see Funding below.)
 
 ### Tier-2 payments — we are the *seller* (x402)
 The announcement is the buyer side. **Our move is the seller side, and it's the open x402 standard — live today, no preview dependency.**
+
+**Reuse, don't rebuild:** the seller gateway already exists at `code/social/x402-gateway/` (Feb–Mar 2026) — Express + `@x402/express` `paymentMiddleware` + `ExactEvmScheme`, gating 4 routes ($0.005–$0.03) and proxying to the Vellocity Laravel API after payment clears. To productionize for the MCP: (1) Base **Sepolia testnet → Base mainnet** (`NETWORK`), real `WALLET_ADDRESS`, and a production facilitator (Coinbase's, vs the current `x402.org` one); (2) add the MCP tool routes (or front `mcp.vell.ai` with this middleware); (3) per-tenant spend caps + the guardrails below. The "x402-gate → proxy to the real app" pattern is already proven against Vellocity.
 - Our metered tools return **HTTP 402** with an x402 challenge; verify the stablecoin payment proof (USDC on Base) before serving the result. Build to the open Coinbase x402 spec now → automatically compatible with AgentCore-Payments buyers when it GAs, *and* with the live crypto x402 rail today (x402scan, agentic.market have real txns).
 - **List our MCP in the Coinbase x402 Bazaar** (surfaced via AgentCore Gateway) — agent-discovery + agent-pay. This is the literal "Vellocity gets bought by agents" dog-food, alongside the AWS Marketplace AI Agents & Tools listing.
 - Keep a **fiat fallback** (Stripe metered / Marketplace metered contract) for human/account buyers who aren't on an agent wallet. Two rails: x402 for agents, fiat for humans.
@@ -83,6 +87,19 @@ margin_per_call = price − (bedrock_tokens·rate + lambda_gb_s·rate + req_fee 
 Tier-0 (thin) ≈ Lambda ms only → effectively free. You can price each tool call against its measured token COGS and set tiers/caps accordingly.
 
 ---
+
+## 3.5 AWS funding tied to this category (changes the COGS math)
+
+Listing in **AWS Marketplace AI Agents & Tools** + the AI Competency **Agentic AI** categories unlocks real money that offsets exactly our costs:
+
+- **AWS Activate — Generative AI credits: up to ~$300K** for AI startups on Bedrock/SageMaker/Trainium. **This directly offsets Tier-1 Bedrock COGS** — early thick-mode inference can be credit-funded while we prove unit economics.
+- **Marketing Development Funds: +$25K** for 2026 on validating in any Agentic AI category, on top of the **$50K** base AI Specialization MDF → **up to $75K** to fund the GTM/listing.
+- **SaaS Co-Sell Benefit** — API-based AI Agents & Tools listings get AWS field co-sell incentives.
+- **MPOPP** (Marketplace Private Offer Promotion Program) — promotional credits to *customers* who buy via private offers → helps close deals.
+
+**Eligibility (the bar):** validated/differentiated membership in the Services or Software Path + demonstrated enterprise customer implementations of autonomous AI + responsible-AI alignment. The Agentic categories are **Agentic AI Applications / Tools / Consulting** (launched with 60 partners). ⚠ Requires Vellocity's **AWS Partner standing** — confirm APN path/status (separate from Ron's former-employee status) before banking on the funds.
+
+**Strategic implication:** early Bedrock spend is credit-funded ($300K Activate), GTM is MDF-funded ($75K), and the field is incentivized to co-sell. The "metered MCP = COGS" model is de-risked through the proving phase — build it, listed in AI Agents & Tools, on AWS's dime.
 
 ## 4. Guardrails — cost IS security here
 
