@@ -92,8 +92,8 @@ Tier-0 (thin) ≈ Lambda ms only → effectively free. You can price each tool c
 
 Listing in **AWS Marketplace AI Agents & Tools** + the AI Competency **Agentic AI** categories unlocks real money that offsets exactly our costs:
 
-- **AWS Activate — Generative AI credits: up to ~$300K** for AI startups on Bedrock/SageMaker/Trainium. **This directly offsets Tier-1 Bedrock COGS** — early thick-mode inference can be credit-funded while we prove unit economics.
-- **Marketing Development Funds: +$25K** for 2026 on validating in any Agentic AI category, on top of the **$50K** base AI Specialization MDF → **up to $75K** to fund the GTM/listing.
+- **Partner build credits — AWS Innovation Sandbox** (available to partners *now*; submit a monthly cost calculator + dev plan) **offset AWS/Bedrock dev + usage costs** for Tier-1 while we prove unit economics. (Startups may separately pursue AWS Activate GenAI credits, up to ~$300K.)
+- **MDF — up to $75K** ($50K base + $25K Agentic categories), **gated behind earning a program designation** (e.g. AI Competency); funds GTM/listing once validated.
 - **SaaS Co-Sell Benefit** — API-based AI Agents & Tools listings get AWS field co-sell incentives.
 - **MPOPP** (Marketplace Private Offer Promotion Program) — promotional credits to *customers* who buy via private offers → helps close deals.
 
