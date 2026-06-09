@@ -23,7 +23,7 @@ async function runSkill(skill: SkillDef, inputs: Record<string, unknown>): Promi
 }
 
 function makeServer(): McpServer {
-  const server = new McpServer({ name: "gtm-skill-pack", version: "0.1.0" });
+  const server = new McpServer({ name: "vellocity-mcp", version: "0.1.0" });
   for (const skill of SKILLS) {
     server.registerTool(
       skill.name,
@@ -42,7 +42,7 @@ app.use(express.json({ limit: "1mb" }));
 
 // Health check (open) — for smoke tests and uptime monitoring.
 app.get("/health", (_req: Request, res: Response) => {
-  res.json({ ok: true, server: "gtm-skill-pack", mode: MODE, tools: SKILLS.map((s) => s.name) });
+  res.json({ ok: true, server: "vellocity-mcp", tier: "gtm-sample", mode: MODE, tools: SKILLS.map((s) => s.name) });
 });
 
 // Bearer auth for the MCP endpoint. Empty TOKEN = open (free preview / dev).
@@ -78,5 +78,5 @@ app.get("/mcp", methodNotAllowed);
 app.delete("/mcp", methodNotAllowed);
 
 app.listen(PORT, () => {
-  console.error(`gtm-skill-pack MCP listening on :${PORT} (mode=${MODE}, auth=${TOKEN ? "on" : "open"})`);
+  console.error(`vellocity-mcp [gtm-sample] listening on :${PORT} (mode=${MODE}, auth=${TOKEN ? "on" : "open"})`);
 });

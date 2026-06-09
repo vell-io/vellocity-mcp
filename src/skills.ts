@@ -1,9 +1,10 @@
 import { z } from "zod";
 
 /**
- * The GTM skills, as MCP tools. Content mirrors the free skill pack
- * (github.com/vell-admin/gtm-skill-pack) so the paid "tools" tier behaves
- * identically to the free "knowledge" tier — it just runs instead of instructing.
+ * The free `gtm_*` sample tier of the Vellocity MCP. These tools mirror the free
+ * skill pack (github.com/vell-admin/gtm-skill-pack) — thin, no data, no side-effects,
+ * safe to expose unauthenticated and list in AWS Marketplace AI Agents & Tools.
+ * Authenticated (live-data) and metered tiers add more namespaces behind auth.
  */
 
 export interface SkillDef {
@@ -18,7 +19,7 @@ export interface SkillDef {
 
 export const SKILLS: SkillDef[] = [
   {
-    name: "listing_audit",
+    name: "gtm_listing_audit",
     title: "Listing Optimizer",
     description:
       "Audit and rewrite an AWS Marketplace listing — title, short/long description, search terms — for human discovery and machine/agent consumption.",
@@ -45,7 +46,7 @@ export const SKILLS: SkillDef[] = [
       "Return: (1) the scorecard table, (2) rewritten title, short, and long copy ready to paste, (3) a keyword/category list, (4) a short 'fix-first' punch list.",
   },
   {
-    name: "cosell_draft",
+    name: "gtm_cosell_draft",
     title: "Co-sell Outreach Writer",
     description:
       "Draft ACE-ready co-sell outreach to AWS reps/PDMs plus a paste-ready ACE opportunity summary, framed to the recipient's incentive.",
@@ -68,7 +69,7 @@ export const SKILLS: SkillDef[] = [
       "Return: subject line, the outreach message, the ACE summary block, and the follow-up — all paste-ready. No filler, no hype adjectives.",
   },
   {
-    name: "pricing_story",
+    name: "gtm_pricing_story",
     title: "Pricing Story Builder",
     description:
       "Build packaging and a defensible pricing narrative for AWS Marketplace products, including data/AI products bought by agents.",

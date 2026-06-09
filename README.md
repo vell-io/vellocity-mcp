@@ -1,45 +1,45 @@
-# GTM Skill Pack — MCP server (Foundry tier)
+# Vellocity MCP
 
-The [AWS Marketplace GTM Skill Pack](https://github.com/vell-admin/gtm-skill-pack) as **live MCP tools**. Add one connector URL to Claude, ChatGPT, or Copilot and the skills run as tools — no copy-paste, no Project setup.
+The agent/tool interface to the **[Vellocity](https://vell.ai)** GTM platform — one MCP, tiered by capability and auth.
 
-This is the **paid Foundry tier**. The free tier ships the *knowledge* (the skills as markdown). This ships the *capability* — and capability is the bridge to the real engine, **[Vellocity](https://vell.ai)**, which runs this GTM motion end-to-end at scale with live data.
+This repo is the **free `gtm_*` sample tier**: thin tools that hold no data and take no actions, safe to expose unauthenticated and to list in **AWS Marketplace AI Agents & Tools**. It's the get-found surface *and* a reference example partners can point their own agents at. The authenticated (live-data) and metered tiers are the real engine — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-> Free = the prompts. Foundry = the tools that run them. **Vellocity = the platform that does it for you.** Charging for capability, not content, is the whole agentic-commerce thesis — dog-fooded.
+> **The ladder:** free skills (knowledge, [gtm-skill-pack](https://github.com/vell-admin/gtm-skill-pack)) → this MCP's `gtm_*` sample (tools you run) → authenticated Vellocity tools (live data) → metered / agentic-pay (x402, AgentCore Pay). Vellocity is the engine; this is a working teaser of it.
 
-## Tools (v1)
+## Free sample tools (`gtm_*`)
 
 | Tool | Does |
 |---|---|
-| `listing_audit` | Score + rewrite an AWS Marketplace listing for humans and agents |
-| `cosell_draft` | ACE-ready outreach + a paste-ready ACE opportunity summary |
-| `pricing_story` | Value metric, package ladder, and a procurement-defensible pricing narrative |
+| `gtm_listing_audit` | Score + rewrite an AWS Marketplace listing for humans and agents |
+| `gtm_cosell_draft` | ACE-ready outreach + a paste-ready ACE opportunity summary |
+| `gtm_pricing_story` | Value metric, package ladder, and a procurement-defensible pricing narrative |
+
+These mirror the free [skill pack](https://github.com/vell-admin/gtm-skill-pack) — thin mode just runs them instead of you pasting them.
 
 ## Run it
 
 ```bash
-cp .env.example .env      # set GTM_MCP_TOKEN for prod; leave empty for an open preview
-npm install
-npm run build
-npm start                 # listens on :8787 (or $PORT)
+cp .env.example .env      # GTM_MCP_TOKEN optional for the open sample tier
+npm install && npm run build && npm start   # :8787
 ```
 
 - `GET /health` → status + tool list (open).
-- `POST /mcp` → the MCP endpoint (Streamable HTTP, stateless). Requires `Authorization: Bearer $GTM_MCP_TOKEN` when a token is set; open when empty (free preview).
-
-## Thin vs. thick
-
-- **thin** (default) — the tool returns the assembled expert prompt for the *caller's* model to execute. Zero inference cost, no model key, runs anywhere. Great free-but-gated preview.
-- **thick** — the server runs the skill against Bedrock and returns the finished artifact. Consistent output regardless of caller; this is what justifies metering. Drop-in point is marked in [`src/index.ts`](src/index.ts) `runSkill()` (`GTM_MCP_MODE=thick`).
+- `POST /mcp` → MCP endpoint (Streamable HTTP, stateless). Bearer-gated when `GTM_MCP_TOKEN` is set; open for the free sample.
 
 ## Connect from a model
 
-Add the deployed URL (e.g. `https://gtm-mcp.vell.ai/mcp`) as a remote MCP connector:
-- **Claude** → Settings → Connectors → Add custom connector → paste the URL + bearer token.
-- **ChatGPT** → Custom GPT → Actions / connector → same URL + token.
+Add the deployed URL (e.g. `https://mcp.vell.ai/mcp`) as a remote MCP connector:
+- **Claude** → Settings → Connectors → Add custom connector.
+- **ChatGPT** → Custom GPT → Actions / connector.
 
-## Roadmap
+## Thin vs. thick
 
-Per [the scope doc](https://github.com/vell-admin/gtm-skill-pack/blob/main/docs/MCP-SERVER-SCOPE.md): bearer-key issuance on Foundry purchase, rate-limited free preview, then metering — Stripe metered → **AgentCore Pay / x402** for true pay-per-call when the caller is itself an agent. Host at `gtm-mcp.vell.ai` (DNS-01 cert).
+- **thin** (default) — returns the assembled expert prompt for the caller's model to run. Zero inference, no data, safe to expose.
+- **thick** — runs server-side (Bedrock); drop-in point marked in [`src/index.ts`](src/index.ts) `runSkill()`.
+
+## Security posture
+
+The sample tier is safe to expose **because it holds no data and takes no actions**. Anything that touches tenant data or takes actions lives behind auth in the platform tiers, with strict tenant isolation, inputs-treated-as-inert, least-privilege, and rate limits — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
-© 2026 Ron Davis / Vellocity · From listed to bought. · The real engine: https://vell.ai
+© 2026 Ron Davis / Vellocity · From listed to bought. · The engine: https://vell.ai

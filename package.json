@@ -1,11 +1,11 @@
 {
-  "name": "gtm-skill-pack-mcp",
+  "name": "vellocity-mcp",
   "version": "0.1.0",
   "private": true,
-  "description": "The AWS Marketplace GTM Skill Pack as live MCP tools — the Foundry tier. By Ron Davis / Vellocity.",
+  "description": "The Vellocity MCP — agent/tool interface to the Vellocity GTM platform. Free gtm_* sample tier; authenticated + metered tiers gated. By Ron Davis / Vellocity.",
   "type": "module",
   "bin": {
-    "gtm-skill-pack-mcp": "dist/index.js"
+    "vellocity-mcp": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",

@@ -8,9 +8,9 @@ function check(label: string, cond: boolean) {
 }
 
 check("3 tools registered", SKILLS.length === 3);
-check("tool names", SKILLS.map((s) => s.name).join(",") === "listing_audit,cosell_draft,pricing_story");
+check("tool names", SKILLS.map((s) => s.name).join(",") === "gtm_listing_audit,gtm_cosell_draft,gtm_pricing_story");
 
-const listing = SKILLS.find((s) => s.name === "listing_audit")!;
+const listing = SKILLS.find((s) => s.name === "gtm_listing_audit")!;
 const prompt = buildPrompt(listing, {
   product: "Acme Observability — incident response for AWS",
   icp: "Platform eng leads at mid-market SaaS on AWS",
