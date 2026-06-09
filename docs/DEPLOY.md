@@ -56,9 +56,16 @@ Thick mode replaces the `runSkill()` thin return with a real inference call.
 - **AgentCore Gateway** — can *be* the managed MCP gateway: expose Lambdas/APIs as MCP tools with managed auth. Could replace hand-rolled gateway code.
 - **AgentCore Identity** — per-tenant OAuth/scoping → satisfies Tier-1 isolation without building an auth service.
 - **AgentCore Runtime / Memory** — managed serverless agent execution + memory, if a tool grows from one inference call into a multi-step agent.
-- **AgentCore Pay / x402** — Tier-2 metering / agent-pays-per-call (Pay is released; confirm the rest are GA, not preview, and fit MCP Streamable HTTP).
+- **AgentCore Payments** — **PREVIEW** (announced 2026-05-07; regions us-east-1, us-west-2, eu-central-1, ap-southeast-2; built with Coinbase + Stripe). This is the **buyer side**: it lets an agent autonomously pay for paid APIs/MCPs — on HTTP 402 it negotiates x402, authenticates the wallet (Coinbase CDP or Stripe Privy), settles stablecoin, and returns proof, with deterministic session spend-limits. It also exposes the **Coinbase x402 Bazaar** (10,000+ x402 endpoints) through AgentCore Gateway for discovery.
 
 **Decision gate:** evaluate AgentCore Gateway/Identity GA + MCP fit *before* architecting Tier-1 on it. If not ready, fall back to: API Gateway authorizer + Cognito (or a bearer-key table) for auth, and our own thin metering — but prefer AgentCore to avoid building plumbing.
+
+### Tier-2 payments — we are the *seller* (x402)
+The announcement is the buyer side. **Our move is the seller side, and it's the open x402 standard — live today, no preview dependency.**
+- Our metered tools return **HTTP 402** with an x402 challenge; verify the stablecoin payment proof (USDC on Base) before serving the result. Build to the open Coinbase x402 spec now → automatically compatible with AgentCore-Payments buyers when it GAs, *and* with the live crypto x402 rail today (x402scan, agentic.market have real txns).
+- **List our MCP in the Coinbase x402 Bazaar** (surfaced via AgentCore Gateway) — agent-discovery + agent-pay. This is the literal "Vellocity gets bought by agents" dog-food, alongside the AWS Marketplace AI Agents & Tools listing.
+- Keep a **fiat fallback** (Stripe metered / Marketplace metered contract) for human/account buyers who aren't on an agent wallet. Two rails: x402 for agents, fiat for humans.
+- ⚠ Preview + crypto caveats: 4 regions; stablecoin settlement is a crypto rail (Stripe Privy gives a managed-wallet option); don't gate GA launch on AgentCore preview — gate on our own x402 seller endpoint, which is standard and ready. (The private fiat-settlement pilot is NDA — public side only.)
 
 ### Tenant state
 **DynamoDB** (PAY_PER_REQUEST): tenant → API key (hashed), tier, rate-limit counters, spend-to-date. No always-on RDS for the MCP layer. Tenant *business* data (their listing, catalog) is pulled live from Vellocity's existing app APIs at call time — the MCP holds none at rest.
@@ -96,7 +103,7 @@ The internal QBO/Kajabi MCPs (OpenClaw) stay on their current EC2 — they're in
 ## 6. Phased rollout
 1. **Tier-0 live:** SAM deploy → `mcp.vell.ai` (CloudFront+ACM), list in AWS MP AI Agents & Tools. Cheap, real connector URL.
 2. **Tier-1 (on demand):** one thick tool end-to-end on Bedrock, with tenant isolation + rate limit + spend cap, in the private `vellocity-platform` repo. Don't build ahead of pull.
-3. **Tier-2:** metering — Stripe metered → x402 / AgentCore Pay.
+3. **Tier-2:** payments — build our **x402 seller endpoint** (402 + stablecoin-proof verification, open standard, no preview dependency) + a fiat fallback (Stripe metered / Marketplace contract); list in the Coinbase x402 Bazaar. AgentCore Payments (preview) is the buyer side our agent customers bring.
 
 ## Open decisions
 - Front door: CloudFront+Function URL (rec.) vs API Gateway HTTP API vs existing ALB.
