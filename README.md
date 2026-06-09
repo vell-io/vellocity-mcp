@@ -26,6 +26,10 @@ npm install && npm run build && npm start   # :8787
 - `GET /health` → status + tool list (open).
 - `POST /mcp` → MCP endpoint (Streamable HTTP, stateless). Bearer-gated when `GTM_MCP_TOKEN` is set; open for the free sample.
 
+## Deploy
+
+Serverless, COGS-aligned (Lambda + Bedrock/AgentCore, pay-per-call). Plan + SAM sketch: [docs/DEPLOY.md](docs/DEPLOY.md) · [infra/template.yaml](infra/template.yaml).
+
 ## Connect from a model
 
 Add the deployed URL (e.g. `https://mcp.vell.ai/mcp`) as a remote MCP connector:

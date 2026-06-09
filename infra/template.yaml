@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Vellocity MCP — serverless deploy (Tier-0 sample + Tier-1 scaffold).
+  SKETCH: requires src/lambda.ts (serverless-http adapter) + `npm i serverless-http`
+  before `sam build`. Tier-1 (Bedrock + DynamoDB) bits are present but commented
+  where they would widen blast radius — uncomment when Tier-1 ships.
+
+Parameters:
+  Mode:
+    Type: String
+    Default: thin
+    AllowedValues: [thin, thick]
+    Description: thin = prompt assembly (no inference, free sample); thick = Bedrock.
+  McpToken:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Bearer token for /mcp. Empty = open sample tier. (Prefer SSM/Secrets in prod.)
+  DomainName:
+    Type: String
+    Default: mcp.vell.ai
+  CertificateArn:
+    Type: String
+    Description: ACM cert ARN for DomainName (DNS-validated; us-east-1 if fronting with CloudFront).
+  HostedZoneId:
+    Type: String
+    Description: Route53 hosted zone id for vell.ai.
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Timeout: 30
+    MemorySize: 512
+    Architectures: [arm64]   # cheaper per ms
+
+Resources:
+  McpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: dist/lambda.handler        # serverless-http wrapper around the Express app
+      CodeUri: ../
+      Environment:
+        Variables:
+          GTM_MCP_MODE: !Ref Mode
+          GTM_MCP_TOKEN: !Ref McpToken
+          TENANT_TABLE: !Ref TenantTable
+      Policies:
+        - DynamoDBReadPolicy: { TableName: !Ref TenantTable }
+        # --- Tier-1 (thick) only: least-privilege Bedrock invoke. Pin to the model ARNs you use.
+        # - Statement:
+        #     - Effect: Allow
+        #       Action: [bedrock:InvokeModel, bedrock:Converse]
+        #       Resource:
+        #         - arn:aws:bedrock:*::foundation-model/anthropic.claude-*
+      Events:
+        Mcp:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: ANY
+        Root:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /
+            Method: ANY
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Domain:
+        DomainName: !Ref DomainName
+        CertificateArn: !Ref CertificateArn
+        Route53:
+          HostedZoneId: !Ref HostedZoneId
+      # Throttle is the first COGS+security guardrail — per-tenant caps live in app code.
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 50
+        ThrottlingRateLimit: 20
+
+  # Tenant state for Tier-1: hashed API key -> tier, rate-limit counters, spend-to-date.
+  # PAY_PER_REQUEST = no idle cost. Holds NO tenant business data (pulled live at call time).
+  TenantTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: tenantKeyHash, AttributeType: S }
+      KeySchema:
+        - { AttributeName: tenantKeyHash, KeyType: HASH }
+      SSESpecification: { SSEEnabled: true }
+
+Outputs:
+  McpUrl:
+    Description: Public MCP endpoint
+    Value: !Sub "https://${DomainName}/mcp"
+  HttpApiId:
+    Value: !Ref HttpApi
