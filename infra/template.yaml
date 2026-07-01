@@ -22,10 +22,17 @@ Parameters:
     Default: mcp.vell.ai
   CertificateArn:
     Type: String
-    Description: ACM cert ARN for DomainName (DNS-validated; us-east-1 if fronting with CloudFront).
+    Default: ""
+    Description: ACM cert ARN for DomainName. Empty = deploy WITHOUT a custom domain (use the default HTTP API URL — no DNS/ACM prerequisites).
   HostedZoneId:
     Type: String
-    Description: Route53 hosted zone id for vell.ai.
+    Default: ""
+    Description: Route53 hosted zone id for vell.ai. Empty = no custom domain.
+
+Conditions:
+  # Only wire the custom domain when a cert ARN is supplied — lets the FIRST
+  # deploy run with zero DNS/ACM prerequisites and validate on the default URL.
+  HasCustomDomain: !Not [!Equals [!Ref CertificateArn, ""]]
 
 Globals:
   Function:
@@ -37,8 +44,21 @@ Globals:
 Resources:
   McpFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      # `sam build` bundles src/lambda.ts (+ deps) with esbuild → a small ESM artifact.
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2022
+        Sourcemap: false
+        Format: esm
+        EntryPoints:
+          - src/lambda.ts
+        # ESM output needs the CJS globals some deps (express/serverless-http) reference.
+        Banner:
+          js: "import{createRequire}from'module';import{fileURLToPath}from'url';import{dirname}from'path';const require=createRequire(import.meta.url);const __filename=fileURLToPath(import.meta.url);const __dirname=dirname(__filename);"
     Properties:
-      Handler: dist/lambda.handler        # serverless-http wrapper around the Express app
+      Handler: lambda.handler             # esbuild emits lambda.js (serverless-http around Express)
       CodeUri: ../
       Environment:
         Variables:
@@ -70,11 +90,13 @@ Resources:
   HttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
-      Domain:
-        DomainName: !Ref DomainName
-        CertificateArn: !Ref CertificateArn
-        Route53:
-          HostedZoneId: !Ref HostedZoneId
+      Domain: !If
+        - HasCustomDomain
+        - DomainName: !Ref DomainName
+          CertificateArn: !Ref CertificateArn
+          Route53:
+            HostedZoneId: !Ref HostedZoneId
+        - !Ref "AWS::NoValue"
       # Throttle is the first COGS+security guardrail — per-tenant caps live in app code.
       DefaultRouteSettings:
         ThrottlingBurstLimit: 50
@@ -94,7 +116,11 @@ Resources:
 
 Outputs:
   McpUrl:
-    Description: Public MCP endpoint
+    Description: Public MCP endpoint (custom domain — only present when deployed with a cert)
+    Condition: HasCustomDomain
     Value: !Sub "https://${DomainName}/mcp"
+  DefaultApiUrl:
+    Description: Default HTTP API base URL (use when no custom domain) — append /mcp and /health
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"
   HttpApiId:
     Value: !Ref HttpApi

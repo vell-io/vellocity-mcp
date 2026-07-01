@@ -77,6 +77,13 @@ const methodNotAllowed = (_req: Request, res: Response) =>
 app.get("/mcp", methodNotAllowed);
 app.delete("/mcp", methodNotAllowed);
 
-app.listen(PORT, () => {
-  console.error(`vellocity-mcp [gtm-sample] listening on :${PORT} (mode=${MODE}, auth=${TOKEN ? "on" : "open"})`);
-});
+// Only bind a port when running as a normal process (local dev, EC2, container).
+// Under Lambda (AWS_LAMBDA_FUNCTION_NAME is always set) we export `app` instead
+// and let src/lambda.ts adapt it — see that file.
+if (!process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  app.listen(PORT, () => {
+    console.error(`vellocity-mcp [gtm-sample] listening on :${PORT} (mode=${MODE}, auth=${TOKEN ? "on" : "open"})`);
+  });
+}
+
+export { app };
