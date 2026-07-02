@@ -24,7 +24,7 @@ Three free MCP tools that make your AWS Marketplace listing legible to human buy
 
 ## Long description
 
-**The problem.** AWS Marketplace listings are written for humans skimming a page — but the next buyer is an AI agent parsing structured data. In Vellocity's Agent-Ready Index — 301 AWS Marketplace listings scored on both a human-buyer and a machine-buyer lens — the median machine-buyer score was 23/100: unclear capability declarations, buried pricing logic, and metadata an agent can't parse. Sellers lose agent-driven discovery before a human ever sees the page.
+**The problem.** AWS Marketplace listings are written for humans skimming a page — but the next buyer is an AI agent parsing structured data. In Vellocity's Agent-Ready Index, of 701 AWS Marketplace listings surveyed, only 301 were machine-parseable enough to score on the agent lens at all — and among those, the median machine-buyer score was just 23/100 versus 76/100 for human browsers. That 53-point gap comes from unclear capability declarations, buried pricing logic, and metadata an agent can't parse. Sellers lose agent-driven discovery before a human ever sees the page.
 
 **The outcome.** Listings that rank for human search *and* get recommended by procurement agents; co-sell outreach that lands as clean ACE opportunities; pricing narratives that survive a security/procurement review. Faster listed-to-bought.
 
@@ -41,7 +41,7 @@ Three free MCP tools that make your AWS Marketplace listing legible to human buy
 - Turn a partner conversation into a submission-ready ACE opportunity summary and a two-touch co-sell outreach sequence for AWS Partner Central.
 - Build a package ladder and pricing narrative for a SaaS contract listing that a buyer's procurement team can defend internally.
 
-**Proof.** These tools apply the same rubric behind Vellocity's Agent-Ready Index — the "Listed to Bought" analysis that scores AWS Marketplace listings on both a human-buyer and a machine-buyer lens (current reading: 301 listings scored, median machine-buyer score 23/100; see https://vell.ai). This listing was itself drafted with the `gtm_listing_audit` rubric applied to it.
+**Proof.** These tools apply the same rubric behind Vellocity's Agent-Ready Index — the "Listed to Bought" analysis that scores AWS Marketplace listings on both a human-buyer and a machine-buyer lens (latest reading: 701 listings surveyed, 301 scored on the agent lens — median machine-buyer 23/100 vs 76/100 human; run your own at https://www.itsrondavis.com/second-buyer-score). This listing was itself drafted with the `gtm_listing_audit` rubric applied to it.
 
 **Who it's for.** AWS Marketplace sellers, ISV GTM and product-marketing teams, and partner/co-sell managers preparing listings, ACE opportunities, or pricing.
 
@@ -49,7 +49,7 @@ Three free MCP tools that make your AWS Marketplace listing legible to human buy
 
 ## Highlights (3–5 bullets)
 
-- **Agent-ready by design** — optimizes listings for the AI buyers already doing procurement, not just human skimmers; built from an index of 301 scored AWS Marketplace listings.
+- **Agent-ready by design** — optimizes listings for the AI buyers already doing procurement, not just human skimmers; built from an index of 701 surveyed AWS Marketplace listings.
 - **Three GTM jobs, one connector** — listing optimization, co-sell/ACE outreach, and pricing narrative.
 - **Lightweight & transient** — the free tier runs no server-side inference and stores nothing: your inputs assemble a playbook your own model runs — no account, no API key, no content logs — and no tool takes an action on any external system.
 - **Standards-based** — a remote MCP server (Streamable HTTP); works with any MCP-capable agent. Free, no key.
@@ -102,10 +102,10 @@ AWS Marketplace GTM · listing optimization · co-sell · ACE (AWS Partner Centr
 
 ## Pre-submit checklist
 
-- [x] **Resolved every `[FILL: …]`** — protocol `2025-06-18` (live `initialize`), hosting `us-east-1` (Lambda+CloudFront), rate limit `none enforced` (no WAF on dist E1QSPD2PYSB2TO), Agent-Ready Index `301 listings / median 23`.
+- [x] **Resolved every `[FILL: …]`** — protocol `2025-06-18` (live `initialize`), hosting `us-east-1` (Lambda+CloudFront), rate limit `none enforced` (no WAF on dist E1QSPD2PYSB2TO), Agent-Ready Index `701 surveyed / 301 agent-scored / median 23 agent vs 76 human` (corpus vs agent-scored denominators — NOT a typo; bands + medians cover the 301 machine-parseable subset).
 - [x] **Ground truth corrected** — the real tool schemas DO take content args (`currentTitle/currentShort/currentLong`, `pricingModel`, `competitors`, `opportunity`, `currentPricing`). Rewrote "How it works", the "Lightweight & transient" highlight, the Technical-facts rows, and the tool one-liners so the listing no longer claims "nothing is sent to Vellocity." Accurate framing: inputs ARE sent, processed transiently, not stored; no server inference; no external actions.
 - [x] **Endpoints verified live** — `/health` 200; `POST /mcp` completes an `initialize` handshake (protocol 2025-06-18, server vellocity-mcp 0.1.0, 3 tools).
 - [x] **Rate limit confirmed** — none enforced (no WebACL on the CloudFront dist); stated as best-effort.
 - [x] **Companion link verified public** — `github.com/vell-admin/gtm-skill-pack` → 200.
 - [~] **Self-audit score CUT** — did not fabricate specific human/agent scores; a self-assigned dual score isn't independently verifiable. Proof now says the listing was "drafted with the `gtm_listing_audit` rubric" without a made-up number. (Restore real scores only if produced by an actual scoring run.)
-- [ ] **RON TO CONFIRM before submit:** (a) OK to publish the Agent-Ready Index numbers (301 / median 23) on a public listing — they're a *current* reading and will drift as the index updates; consider "based on our latest reading" framing or a dedicated public methodology URL instead of vell.ai. (b) Cross-check vell.ai pricing/claims don't contradict this listing (website ↔ listing coherence is scored by AWS agents).
+- [ ] **RON TO CONFIRM before submit:** (a) Numbers now read `701 surveyed / 301 agent-scored / median 23 agent vs 76 human`, framed as "latest reading" (they drift as the index updates); proof links to the public `itsrondavis.com/second-buyer-score` so a reader can reproduce a score. (b) Cross-check vell.ai + itsrondavis.com pricing/claims don't contradict this listing (website ↔ listing coherence is scored by AWS agents). (c) Consider a real WAF rate-limit on the open Function URL before this listing drives traffic.
