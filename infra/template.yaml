@@ -17,6 +17,14 @@ Parameters:
     Default: ""
     NoEcho: true
     Description: Bearer token for /mcp. Empty = open sample tier (the Marketplace trial surface).
+  ReservedConcurrency:
+    Type: Number
+    Default: 50
+    Description: >
+      Hard ceiling on simultaneous executions for the open free tier. Bounds
+      cost/abuse blast radius (distributed abuse that WAF per-IP rules can't catch)
+      while staying well above the observed peak of 23. Tune down to tighten the
+      cost ceiling, up if legit parallel evaluators get throttled.
 
 Globals:
   Function:
@@ -33,6 +41,7 @@ Resources:
       DockerTag: v1
     Properties:
       PackageType: Image
+      ReservedConcurrentExecutions: !Ref ReservedConcurrency
       Environment:
         Variables:
           GTM_MCP_MODE: !Ref Mode
