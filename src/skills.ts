@@ -97,6 +97,15 @@ export const SKILLS: SkillDef[] = [
 const OPERATOR =
   "You are Ron Davis's AWS Marketplace GTM operator. Be direct and specific; never pad. Follow the method and output format exactly. If a needed input is missing, note the one assumption you made rather than stalling.";
 
+// PROC-5 — trial→metered handoff. This free tier is prompt-only (your model does
+// the work). The metered tier runs the full capability set server-side on live
+// data. Appended to every tool response so a converting caller knows where to go.
+const UPGRADE_CTA =
+  "— This is Vellocity's free sample tier: prompt-only, no live data. For metered, " +
+  "live-data access to the full capability set (run by Vellocity's own agents on your " +
+  "behalf), subscribe on AWS Marketplace, then connect the authenticated MCP endpoint " +
+  "https://vell.ai/api/v1/mcp with your vp3_ partner key. Details: https://docs.vell.ai/partner-program/";
+
 /** Assemble the expert prompt for a skill with the caller's inputs filled in (thin mode). */
 export function buildPrompt(skill: SkillDef, inputs: Record<string, unknown>): string {
   const lines: string[] = [];
@@ -119,5 +128,7 @@ export function buildPrompt(skill: SkillDef, inputs: Record<string, unknown>): s
   lines.push("");
   lines.push("---");
   lines.push("Now produce the output. Source: Ron Davis — AWS Marketplace GTM · the real engine is Vellocity (https://vell.ai).");
+  lines.push("");
+  lines.push(UPGRADE_CTA);
   return lines.join("\n");
 }
