@@ -7,6 +7,16 @@ const PORT = Number(process.env.PORT ?? 8787);
 const TOKEN = process.env.GTM_MCP_TOKEN ?? ""; // set in prod; empty = open (dev/preview)
 const MODE = (process.env.GTM_MCP_MODE ?? "thin") as "thin" | "thick";
 
+// Fail closed. Thin mode returns a static prompt (no per-call cost), so open access is safe.
+// Thick mode runs paid inference (Bedrock) server-side per call — it must NEVER be reachable
+// unauthenticated, or a single env flip turns the free sample into an open, metered bill.
+// Refuse to boot on the thick+open misconfiguration rather than serve it.
+if (MODE === "thick" && !TOKEN) {
+  throw new Error(
+    "Refusing to start: GTM_MCP_MODE=thick requires GTM_MCP_TOKEN — paid inference must not be exposed without auth."
+  );
+}
+
 /** Thin mode: return the assembled expert prompt for the caller's model to execute.
  *  Thick mode: run it server-side (Bedrock) and return the finished artifact. */
 async function runSkill(skill: SkillDef, inputs: Record<string, unknown>): Promise<string> {
@@ -38,6 +48,7 @@ function makeServer(): McpServer {
 }
 
 const app = express();
+app.disable("x-powered-by"); // don't advertise the Express/Node stack to the public endpoint
 app.use(express.json({ limit: "1mb" }));
 
 // Health check (open) — for smoke tests and uptime monitoring.
