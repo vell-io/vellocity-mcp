@@ -58,6 +58,8 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+      - name: Set up QEMU (emulate arm64 — the image is built arm64, runner is amd64)
+        uses: docker/setup-qemu-action@v3
       - name: Login to ECR Public (avoids anonymous pull rate limit on the base image)
         run: aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
       - name: sam build
@@ -94,6 +96,8 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+      - name: Set up QEMU (emulate arm64 — the image is built arm64, runner is amd64)
+        uses: docker/setup-qemu-action@v3
       - name: Login to ECR Public (avoids anonymous pull rate limit on the base image)
         run: aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
       - name: sam build
