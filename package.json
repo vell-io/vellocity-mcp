@@ -12,7 +12,8 @@
     "start": "node dist/index.js",
     "dev": "node --watch --loader ts-node/esm src/index.ts",
     "smoke": "node dist/smoke.js",
-    "deploy:sample": "npm run build && sam build -t infra/template.yaml && sam deploy --stack-name vellocity-mcp-sample --region us-east-1 --resolve-s3 --resolve-image-repos --capabilities CAPABILITY_IAM --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides Mode=thin"
+    "deploy:sample": "npm run build && sam build -t infra/template.yaml && sam deploy --stack-name vellocity-mcp-sample --region us-east-1 --resolve-s3 --resolve-image-repos --capabilities CAPABILITY_IAM --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides Mode=thin",
+    "deploy:sandbox": "npm run build && sam build -t infra/template.yaml && sam deploy --stack-name vellocity-mcp-sandbox --region us-east-1 --resolve-s3 --resolve-image-repos --capabilities CAPABILITY_IAM --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides Mode=thick McpToken=${GTM_MCP_SANDBOX_TOKEN:?set_GTM_MCP_SANDBOX_TOKEN} ReservedConcurrency=5"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",

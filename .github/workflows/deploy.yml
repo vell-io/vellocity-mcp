@@ -1,0 +1,101 @@
+# Vellocity MCP — serverless CI/CD (one workflow, two environments, stacks-by-param).
+#
+# Not a dev/demo/prod branch pipeline — SAM separates environments by STACK + PARAMS,
+# not by branch. Same code, different stack:
+#   - merge to main  -> deploy the SANDBOX stack  (Mode=thick, low concurrency)
+#   - tag v* / manual -> deploy the PROD sample    (Mode=thin, open) = agents.vell.ai
+#
+# ── One-time setup (prerequisites) ───────────────────────────────────────────
+# 1. GitHub OIDC → AWS: create an IAM role trusting token.actions.githubusercontent.com
+#    (aud sts.amazonaws.com, sub repo:vell-io/vellocity-mcp:*) with permissions to
+#    run SAM (CloudFormation, Lambda, ECR, S3 artifacts, IAM PassRole for the stack).
+#    Prefer OIDC over long-lived keys.
+# 2. Repo secrets:
+#      AWS_DEPLOY_ROLE_ARN     - the OIDC role ARN above
+#      GTM_MCP_SANDBOX_TOKEN   - bearer token for the thick sandbox (thick fails
+#                                closed without it — see src/index.ts)
+# 3. Repo Environments (Settings → Environments):
+#      sandbox      - no gate (auto-deploys on merge)
+#      production   - add "Required reviewers" = the approval gate before prod
+# -----------------------------------------------------------------------------
+
+name: deploy
+
+on:
+  push:
+    branches: [main]     # -> sandbox
+    tags: ["v*"]         # -> production
+  workflow_dispatch: {}  # -> production (manual, still gated by the environment)
+
+permissions:
+  id-token: write        # OIDC federation to AWS
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  NODE_VERSION: "22"
+
+jobs:
+  sandbox:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: sandbox
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: sam build
+        run: sam build -t infra/template.yaml
+      - name: sam deploy (sandbox — thick, low concurrency)
+        env:
+          SANDBOX_TOKEN: ${{ secrets.GTM_MCP_SANDBOX_TOKEN }}
+        run: |
+          sam deploy \
+            --stack-name vellocity-mcp-sandbox \
+            --region "$AWS_REGION" \
+            --resolve-s3 --resolve-image-repos \
+            --capabilities CAPABILITY_IAM \
+            --no-confirm-changeset --no-fail-on-empty-changeset \
+            --parameter-overrides "Mode=thick" "McpToken=$SANDBOX_TOKEN" "ReservedConcurrency=5"
+
+  production:
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: production   # protect with Required reviewers = manual approval gate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: sam build
+        run: sam build -t infra/template.yaml
+      - name: sam deploy (prod free sample — thin, open)
+        run: |
+          sam deploy \
+            --stack-name vellocity-mcp-sample \
+            --region "$AWS_REGION" \
+            --resolve-s3 --resolve-image-repos \
+            --capabilities CAPABILITY_IAM \
+            --no-confirm-changeset --no-fail-on-empty-changeset \
+            --parameter-overrides "Mode=thin"

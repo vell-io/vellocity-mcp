@@ -81,24 +81,45 @@ paid `mcp.vell.ai` is a different codebase on a different box.
 
 ---
 
-## Sandbox plan (the "way for a sandbox")
-A safe place to exercise the paid / `thick` path (real Bedrock) without touching
-live `agents.vell.ai` or `mcp.vell.ai`:
-- Separate SAM stack `vellocity-mcp-sandbox` (own Function URL / subdomain).
-- `Mode=thick`, `McpToken` **set** (the fail-closed guard now enforces
-  token-when-thick, so a tokenless thick sandbox won't even boot).
-- Wire the Bedrock drop-in in `runSkill()` (`src/index.ts` ~line 15) with a
-  **pinned model ARN** + least-privilege `bedrock:InvokeModel` (scaffolded,
-  commented, in `infra/template.yaml`).
-- Low `ReservedConcurrency` (e.g. 5) as a hard sandbox cost cap.
+## Environments = stacks-by-param (NOT branches)
+This is a stateless Lambda, so it does **not** use the Laravel side's
+dev/demo/prod branch + CodeDeploy pipelines. Environments are separate SAM
+**stacks** built from the same code with different **parameters**:
+
+| Env | Stack | Params | npm script |
+|---|---|---|---|
+| Prod (free) | `vellocity-mcp-sample` | `Mode=thin`, token empty, concurrency 50 → agents.vell.ai | `deploy:sample` |
+| Sandbox | `vellocity-mcp-sandbox` | `Mode=thick`, token **set**, concurrency 5 | `deploy:sandbox` |
+
+`deploy:sandbox` fails fast if `GTM_MCP_SANDBOX_TOKEN` is unset (thick requires a
+token — the `src/index.ts` fail-closed guard would otherwise crash-loop the boot).
+
+## CI/CD — `.github/workflows/deploy.yml`
+One workflow, two environments (no per-env pipeline sprawl):
+- **merge to `main`** → deploy the **sandbox** stack automatically.
+- **tag `v*`** or **manual dispatch** → deploy **prod** (`agents.vell.ai`), gated by
+  the GitHub `production` environment's **Required reviewers** (the approval step).
+
+One-time setup before it runs (documented in the workflow header):
+1. GitHub **OIDC → AWS IAM role** (no long-lived keys); ARN → secret `AWS_DEPLOY_ROLE_ARN`.
+2. Secret `GTM_MCP_SANDBOX_TOKEN` (sandbox bearer).
+3. GitHub Environments `sandbox` (no gate) and `production` (Required reviewers).
+
+Bedrock drop-in for the paid path is still stubbed: wire it in `runSkill()`
+(`src/index.ts` ~line 15) with a **pinned model ARN** + least-privilege
+`bedrock:InvokeModel` (scaffolded, commented, in `infra/template.yaml`) before
+the sandbox exercises real inference.
 
 ---
 
 ## Open items
 - [ ] Deploy `infra/waf.yaml` + attach to the `agents.vell.ai` distribution.
 - [ ] Lock the Lambda Function URL to CloudFront (OAC) — makes the WAF real.
+- [ ] CI/CD: create the OIDC role + set the 3 secrets/environments (workflow header).
 - [ ] Reconcile `ARCHITECTURE.md` naming (`agents.vell.ai` vs `mcp.vell.ai`; drop `/mcp`?).
 - [ ] Harden the paid server headers (`x-powered-by`, `server_tokens off`).
-- [ ] Stand up the `thick` sandbox stack before wiring live inference.
+- [ ] Wire the Bedrock drop-in in `runSkill()` before the sandbox runs live inference.
+
+_CI/CD + sandbox stack scaffolded 2026-07-10 (`deploy:sandbox` + deploy.yml)._
 
 _Last verified: 2026-07-10 (live probe of both endpoints)._
