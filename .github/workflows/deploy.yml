@@ -68,13 +68,17 @@ jobs:
         env:
           SANDBOX_TOKEN: ${{ secrets.GTM_MCP_SANDBOX_TOKEN }}
         run: |
+          # McpToken only when the secret is set — an empty override is malformed
+          # for SAM. Unset = open sandbox (set GTM_MCP_SANDBOX_TOKEN to fail closed).
+          OVERRIDES="Mode=thick ReservedConcurrency=5"
+          if [ -n "$SANDBOX_TOKEN" ]; then OVERRIDES="$OVERRIDES McpToken=$SANDBOX_TOKEN"; fi
           sam deploy \
             --stack-name vellocity-mcp-sandbox \
             --region "$AWS_REGION" \
             --resolve-s3 --resolve-image-repos \
             --capabilities CAPABILITY_IAM \
             --no-confirm-changeset --no-fail-on-empty-changeset \
-            --parameter-overrides "Mode=thick" "McpToken=$SANDBOX_TOKEN" "ReservedConcurrency=5"
+            --parameter-overrides $OVERRIDES
 
   production:
     # Same guard: skips until AWS_DEPLOY_ROLE_ARN is set, then gated by the environment's reviewers.
