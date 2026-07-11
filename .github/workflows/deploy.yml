@@ -10,8 +10,10 @@
 #    (aud sts.amazonaws.com, sub repo:vell-io/vellocity-mcp:*) with permissions to
 #    run SAM (CloudFormation, Lambda, ECR, S3 artifacts, IAM PassRole for the stack).
 #    Prefer OIDC over long-lived keys.
-# 2. Repo secrets:
+# 2. Repo VARIABLE (Settings → Variables — an ARN isn't sensitive, and it gates
+#    the jobs so they SKIP cleanly until it's set — no failed runs before setup):
 #      AWS_DEPLOY_ROLE_ARN     - the OIDC role ARN above
+#    Repo SECRET (Settings → Secrets):
 #      GTM_MCP_SANDBOX_TOKEN   - bearer token for the thick sandbox (thick fails
 #                                closed without it — see src/index.ts)
 # 3. Repo Environments (Settings → Environments):
@@ -37,7 +39,8 @@ env:
 
 jobs:
   sandbox:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Skips (grey, not red) until AWS_DEPLOY_ROLE_ARN variable is set → no failing runs pre-setup.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AWS_DEPLOY_ROLE_ARN != '' }}
     runs-on: ubuntu-latest
     environment: sandbox
     steps:
@@ -53,7 +56,7 @@ jobs:
           use-installer: true
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
       - name: sam build
         run: sam build -t infra/template.yaml
@@ -70,7 +73,8 @@ jobs:
             --parameter-overrides "Mode=thick" "McpToken=$SANDBOX_TOKEN" "ReservedConcurrency=5"
 
   production:
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    # Same guard: skips until AWS_DEPLOY_ROLE_ARN is set, then gated by the environment's reviewers.
+    if: ${{ (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && vars.AWS_DEPLOY_ROLE_ARN != '' }}
     runs-on: ubuntu-latest
     environment: production   # protect with Required reviewers = manual approval gate
     steps:
@@ -86,7 +90,7 @@ jobs:
           use-installer: true
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
       - name: sam build
         run: sam build -t infra/template.yaml

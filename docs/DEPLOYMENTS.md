@@ -101,8 +101,10 @@ One workflow, two environments (no per-env pipeline sprawl):
   the GitHub `production` environment's **Required reviewers** (the approval step).
 
 One-time setup before it runs (documented in the workflow header):
-1. GitHub **OIDC → AWS IAM role** (no long-lived keys); ARN → secret `AWS_DEPLOY_ROLE_ARN`.
-2. Secret `GTM_MCP_SANDBOX_TOKEN` (sandbox bearer).
+1. GitHub **OIDC → AWS IAM role** (no long-lived keys); ARN → repo **variable**
+   `AWS_DEPLOY_ROLE_ARN`. This variable also **gates** both jobs: until it's set
+   they **skip** (grey), so there are no failed runs before setup.
+2. Repo **secret** `GTM_MCP_SANDBOX_TOKEN` (sandbox bearer).
 3. GitHub Environments `sandbox` (no gate) and `production` (Required reviewers).
 
 Bedrock drop-in for the paid path is still stubbed: wire it in `runSkill()`
