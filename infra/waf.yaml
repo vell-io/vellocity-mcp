@@ -1,0 +1,269 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Vellocity MCP — CloudFront WAF for the public agents.vell.ai edge: per-IP rate
+  limiting + AWS managed rule sets to cap single-source flood abuse on the free
+  MCP sample. Pairs with (does not replace) the Lambda ReservedConcurrency
+  ceiling in template.yaml. See header comments for scope + Function-URL lock.
+
+# ── SCOPE ────────────────────────────────────────────────────────────────────
+# Scope is CLOUDFRONT, so this WebACL MUST be deployed in us-east-1 (the
+# vellocity-mcp sample stack already deploys there). A CLOUDFRONT WebACL is
+# attached by setting the distribution's WebACLId — NOT via WebACLAssociation
+# (that is REGIONAL-only). This stack creates the WebACL and exports its ARN;
+# attach it to the agents.vell.ai distribution (see AttachmentInstructions).
+#
+# ── ⚠ BYPASS WARNING (read before trusting this WAF) ─────────────────────────
+# The Lambda Function URL is AuthType: NONE — directly invocable at its raw
+# *.lambda-url.us-east-1.on.aws host. WAF here only sees traffic that goes
+# THROUGH CloudFront, so an attacker who hits the raw Function URL bypasses every
+# rule below. This WAF is only real once the Function URL is locked to CloudFront
+# via Origin Access Control for Function URLs:
+#   1. template.yaml → FunctionUrlConfig.AuthType: AWS_IAM (was NONE)
+#   2. Create an OAC (OriginAccessControlOriginType: lambda, SigningBehavior:
+#      always, SigningProtocol: sigv4) on the agents.vell.ai distribution.
+#   3. Add a Lambda resource policy allowing cloudfront.amazonaws.com to
+#      lambda:InvokeFunctionUrl, Condition AWS:SourceArn = the distribution ARN.
+# After that, the raw URL returns 403 to unsigned callers and the only path in is
+# CloudFront → WAF. Until then, treat these limits as best-effort.
+
+Parameters:
+  Name:
+    Type: String
+    Default: vellocity-mcp-cf-waf
+    Description: WebACL name (also used for metric/log naming).
+
+  GeneralRateLimit:
+    Type: Number
+    Default: 300
+    MinValue: 100
+    Description: >
+      Max requests per 5-minute window per IP across all paths. A normal MCP
+      session is a handful of calls (initialize + list + a few tool calls), so
+      300/5min is generous headroom while still cutting single-source floods.
+      WAF rate-based rules evaluate in rolling 5-minute windows; minimum 100.
+
+  McpRateLimit:
+    Type: Number
+    Default: 120
+    MinValue: 100
+    Description: >
+      Stricter per-IP limit scoped to POST /mcp (the tool-invocation path — the
+      one that becomes paid Bedrock spend in thick mode). Keep well below the
+      general limit so the cost path throttles first.
+
+  SnsTopicArn:
+    Type: String
+    Default: ""
+    Description: Optional SNS topic ARN for block-rate alerts (empty = no alarm actions).
+
+  MarketplaceProductCode:
+    Type: String
+    Default: ""
+    Description: Optional AWS Marketplace Product Code for Partner Revenue Measurement tagging.
+
+Conditions:
+  HasSns: !Not [!Equals [!Ref SnsTopicArn, ""]]
+  HasMarketplaceProductCode: !Not [!Equals [!Ref MarketplaceProductCode, ""]]
+
+Resources:
+  #############################################################################
+  # CloudFront WebACL — per-IP abuse limiting for the free MCP sample edge
+  #############################################################################
+  McpWebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Ref Name
+      Scope: CLOUDFRONT
+      Description: Per-IP rate limiting + managed rules for the agents.vell.ai MCP edge.
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: !Ref Name
+      Tags:
+        - Key: Purpose
+          Value: mcp-abuse-mitigation
+        - !If
+          - HasMarketplaceProductCode
+          - Key: aws-apn-id
+            Value: !Sub "pc:${MarketplaceProductCode}"
+          - !Ref AWS::NoValue
+      Rules:
+        # --- Rule 1: AWS Managed Common Rule Set (OWASP top-10) ---------------
+        - Name: AWS-CommonRuleSet
+          Priority: 1
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: !Sub "${Name}-common-rules"
+
+        # --- Rule 2: AWS Managed Known Bad Inputs (Log4j, etc.) --------------
+        - Name: AWS-KnownBadInputs
+          Priority: 2
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesKnownBadInputsRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: !Sub "${Name}-bad-inputs"
+
+        # --- Rule 3: AWS Managed IP Reputation (botnets, scanners) -----------
+        - Name: AWS-IPReputation
+          Priority: 3
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesAmazonIpReputationList
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: !Sub "${Name}-ip-reputation"
+
+        # --- Rule 10: General per-IP rate limit ------------------------------
+        - Name: GeneralRateLimit
+          Priority: 10
+          Action:
+            Block:
+              CustomResponse:
+                ResponseCode: 429
+                CustomResponseBodyKey: rate-limited
+          Statement:
+            RateBasedStatement:
+              Limit: !Ref GeneralRateLimit
+              AggregateKeyType: IP
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: !Sub "${Name}-general-rate"
+
+        # --- Rule 11: Stricter per-IP limit on POST /mcp (the cost path) -----
+        - Name: McpEndpointRateLimit
+          Priority: 11
+          Action:
+            Block:
+              CustomResponse:
+                ResponseCode: 429
+                CustomResponseBodyKey: rate-limited
+          Statement:
+            RateBasedStatement:
+              Limit: !Ref McpRateLimit
+              AggregateKeyType: IP
+              ScopeDownStatement:
+                ByteMatchStatement:
+                  SearchString: "/mcp"
+                  FieldToMatch:
+                    UriPath: {}
+                  TextTransformations:
+                    - Priority: 0
+                      Type: LOWERCASE
+                  PositionalConstraint: STARTS_WITH
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: !Sub "${Name}-mcp-rate"
+
+      CustomResponseBodies:
+        rate-limited:
+          ContentType: APPLICATION_JSON
+          Content: '{"jsonrpc":"2.0","error":{"code":-32029,"message":"Too many requests — slow down and retry."},"id":null}'
+
+  #############################################################################
+  # WAF logging (log group name MUST start with 'aws-waf-logs-')
+  #############################################################################
+  WafLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "aws-waf-logs-${Name}"
+      RetentionInDays: 30
+
+  WafLoggingConfiguration:
+    Type: AWS::WAFv2::LoggingConfiguration
+    DependsOn: WafLogGroup
+    Properties:
+      ResourceArn: !GetAtt McpWebACL.Arn
+      LogDestinationConfigs:
+        - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:aws-waf-logs-${Name}"
+      RedactedFields:
+        - SingleHeader:
+            Name: authorization
+
+  #############################################################################
+  # Alarm — high block rate (active flood or misconfiguration). Optional SNS.
+  #############################################################################
+  HighBlockRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${Name}-high-block-rate"
+      AlarmDescription: >
+        WAF is blocking a high volume of requests on the MCP edge — likely an
+        active flood, an abusive IP, or a rule misconfiguration. Investigate.
+      MetricName: BlockedRequests
+      Namespace: AWS/WAFV2
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 200
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: WebACL
+          Value: !Ref Name
+        # CLOUDFRONT-scope WAF metrics are emitted in us-east-1 with Region=Global.
+        - Name: Region
+          Value: Global
+        - Name: Rule
+          Value: ALL
+      AlarmActions:
+        - !If [HasSns, !Ref SnsTopicArn, !Ref "AWS::NoValue"]
+      TreatMissingData: notBreaching
+
+Outputs:
+  WebACLArn:
+    Description: WebACL ARN — set this as the CloudFront distribution's WebACLId.
+    Value: !GetAtt McpWebACL.Arn
+    Export:
+      Name: VellocityMcpCfWafArn
+
+  WebACLId:
+    Value: !GetAtt McpWebACL.Id
+
+  AttachmentInstructions:
+    Description: How to attach this WebACL to the agents.vell.ai CloudFront distribution.
+    Value: !Sub |
+      This stack only CREATES the WebACL. Attach it to the distribution:
+
+      If the distribution is CFN-managed, add to its DistributionConfig:
+        WebACLId: <WebACLArn output above>
+
+      If it is console/CLI-managed:
+        DID=<distribution-id>
+        aws cloudfront get-distribution-config --id $DID > dc.json   # note the ETag
+        # set .DistributionConfig.WebACLId = "<WebACLArn>"
+        aws cloudfront update-distribution --id $DID \
+          --distribution-config file://<edited DistributionConfig> --if-match <ETag>
+
+      ⚠ Then LOCK THE FUNCTION URL (AuthType AWS_IAM + CloudFront OAC), or the
+      raw *.lambda-url host bypasses this WAF entirely. See the header comment.
+
+      Tune limits:
+        aws cloudformation update-stack --stack-name <this-stack> \
+          --use-previous-template \
+          --parameters ParameterKey=McpRateLimit,ParameterValue=200
+
+      Block-log query (CloudWatch Logs Insights on aws-waf-logs-${Name}):
+        fields @timestamp, action, httpRequest.clientIp, httpRequest.uri
+        | filter action = "BLOCK"
+        | stats count(*) by httpRequest.clientIp
+        | sort count desc | limit 20
