@@ -58,6 +58,8 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+      - name: Login to ECR Public (avoids anonymous pull rate limit on the base image)
+        run: aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
       - name: sam build
         run: sam build -t infra/template.yaml
       - name: sam deploy (sandbox — thick, low concurrency)
@@ -92,6 +94,8 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+      - name: Login to ECR Public (avoids anonymous pull rate limit on the base image)
+        run: aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
       - name: sam build
         run: sam build -t infra/template.yaml
       - name: sam deploy (prod free sample — thin, open)
