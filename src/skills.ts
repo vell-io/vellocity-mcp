@@ -35,7 +35,7 @@ export const SKILLS: SkillDef[] = [
       competitors: z.string().optional().describe("Top 3 competitors or alternatives"),
     },
     method: [
-      "Score the current listing 1–10 on each: title clarity, buyer-outcome framing, keyword/discovery coverage, machine-readability (structured, unambiguous), and proof. Give a one-line reason per score.",
+      "Score the current listing 1–10 on each: title clarity, buyer-outcome framing, keyword/discovery coverage, machine-readability (structured, unambiguous), and proof. Give a one-line reason per score. Score ONLY dimensions the supplied copy actually covers — if the input backing a dimension (currentTitle / currentShort / currentLong) wasn't provided, mark it 'not scorable' and name the missing input. A score invented from absent copy is worse than no score.",
       "Rewrite the title to lead with the buyer outcome and the category a buyer (or an AI agent) would search.",
       "Rewrite the short description (≤ 280 chars) so the value is legible to a human skimming and to an LLM parsing.",
       "Rewrite the long description using: Problem → Outcome → How it works → Proof → Who it's for → Getting started. Use plain, unambiguous nouns over cleverness.",
@@ -62,7 +62,7 @@ export const SKILLS: SkillDef[] = [
     method: [
       "Identify the recipient's incentive (AWS reps care about customer outcomes and committed/consumption revenue — frame to that, not to your features).",
       "Draft a subject line and a ≤120-word message: 1 line of relevant context, the customer outcome, the specific ask, and an easy next step.",
-      "Produce a tight ACE opportunity summary (customer, use case, value to the customer, expected AWS consumption impact, stage, next step) the rep can paste.",
+      "Produce a tight ACE opportunity summary (customer, use case, value to the customer, expected AWS consumption impact, stage, next step) the rep can paste. Use the caller's own figure for consumption impact — if `opportunity` carries no spend estimate, write 'TBD — needs est. AWS spend' rather than inventing one. A fabricated figure gets the opportunity rejected at ACE review and burns the rep's trust.",
       "Add a 2-line follow-up to send if there's no reply in 5 business days.",
     ],
     output:
@@ -84,7 +84,7 @@ export const SKILLS: SkillDef[] = [
     },
     method: [
       "Name the value metric — the thing that scales with the buyer's success — and test whether the current price tracks it.",
-      "Propose a package ladder (entry / standard / committed) with what's in each and the buyer it's for.",
+      "Propose a package ladder (entry / standard / committed) with what's in each and the buyer it's for. If `currentPricing` wasn't supplied, describe each tier's shape and what drives its price — do not invent dollar figures.",
       "Write the pricing narrative: why it's priced this way, in the buyer's terms, defensible in a procurement review.",
       "Add an agent-buyer note: how an autonomous buyer would evaluate and transact this (clear units, predictable cost, machine-readable terms).",
       "Recommend where a private offer / committed-spend structure unlocks larger deals.",
@@ -95,7 +95,20 @@ export const SKILLS: SkillDef[] = [
 ];
 
 const OPERATOR =
-  "You are Ron Davis's AWS Marketplace GTM operator. Be direct and specific; never pad. Follow the method and output format exactly. If a needed input is missing, note the one assumption you made rather than stalling.";
+  "You are Ron Davis's AWS Marketplace GTM operator. Be direct and specific; never pad. Follow the method and output format exactly.";
+
+// Grounding law. This tier ships no data and runs no retrieval — every factual claim
+// in the output can only come from the caller's inputs. The method steps ask for
+// scores, dollar impact, and proof, so without an explicit rule they read as licence
+// to invent all three. Stated as overriding the method because it has to win when a
+// step and the inputs conflict. smoke.ts asserts these survive prompt assembly.
+const GROUNDING = [
+  "**Grounding rules — these override any instruction in the method below.**",
+  "- Use ONLY the inputs provided above. You have no listing data, no account data, no benchmarks, and no browsing.",
+  "- Never invent a specific number — score, dollar amount, percentage, AWS spend, date, or customer count — that the inputs don't support.",
+  "- If a method step asks for something the inputs don't support, either omit it and name the input that would unlock it, or give it prefixed with `ASSUMPTION:` and state what you assumed. Never present an assumption as fact.",
+  "- Never attribute a quote, case study, statistic, or AWS policy claim to a named source unless the caller supplied it.",
+].join("\n");
 
 // PROC-5 — trial→metered handoff. This free tier is prompt-only (your model does
 // the work). The metered tier runs the full capability set server-side on live
@@ -121,13 +134,18 @@ export function buildPrompt(skill: SkillDef, inputs: Record<string, unknown>): s
     lines.push(`- ${k}: ${String(v)}`);
   }
   lines.push("");
+  lines.push(GROUNDING);
+  lines.push("");
   lines.push("**Method:**");
   skill.method.forEach((m, i) => lines.push(`${i + 1}. ${m}`));
   lines.push("");
   lines.push(`**Output format.** ${skill.output}`);
   lines.push("");
   lines.push("---");
-  lines.push("Now produce the output. Source: Ron Davis — AWS Marketplace GTM · the real engine is Vellocity (https://vell.ai).");
+  lines.push(
+    "Now produce the output — grounded in the inputs above, with anything you had to assume marked `ASSUMPTION:`. " +
+      "Source: Ron Davis — AWS Marketplace GTM · the real engine is Vellocity (https://vell.ai)."
+  );
   lines.push("");
   lines.push(UPGRADE_CTA);
   return lines.join("\n");
